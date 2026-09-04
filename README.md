@@ -2,6 +2,13 @@
 
 (English | [中文](README_zh.md) | [日本語](README_ja.md))
 
+## This fork: ESP32-S3-LCD Board Support
+
+This repository is a fork of [78/xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) with a new board target for the **ESP32-S3 LCD 1.77inch dev board** (ST7735S LCD + W5500 + TF card, Type-C powered).
+
+- Board files: `main/boards/esp32s3-lcd-board/`
+- Build/flash guide (Chinese): [docs/ESP32S3_LCD_BOARD.md](docs/ESP32S3_LCD_BOARD.md)
+
 ## Introduction
 
 👉 [Human: Give AI a camera vs AI: Instantly finds out the owner hasn't washed hair for three days【bilibili】](https://www.bilibili.com/video/BV1bpjgzKEhd/)
