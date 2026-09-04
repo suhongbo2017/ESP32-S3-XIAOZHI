@@ -13,7 +13,7 @@
 | USB 串口 | CH340K，自动下载电路（DTR/RTS → EN/IO0） |
 | LCD | ST7735S 1.77"，128x160，SPI，背光常亮（无 GPIO 控制） |
 | 以太网 | W5500，SPI2（当前固件未启用） |
-| TF 卡 | 接于 SPI0_CS1（与 Flash 共用总线，当前固件未启用，见"已知限制"） |
+| TF 卡 | SDMMC 4-bit（GPIO33-38），已启用，挂载于 `/sdcard` |
 
 ## 引脚定义（main/boards/esp32s3-lcd-board/config.h）
 
@@ -21,11 +21,23 @@
 |---|---|
 | LCD CS / DC / RST / MOSI / SCK | 21 / 16 / 15 / 17 / 18 |
 | BOOT 按键（配网/对话切换） | 0 |
+| TF 卡 SDMMC：CMD / CLK / D0 / D1 / D2 / D3 | 35 / 36 / 37 / 38 / 33 / 34 |
 | ES8311 I2C SDA / SCL（预留） | 1 / 2 |
 | ES8311 I2S BCLK / WS / DIN / DOUT / LRCK（预留） | 3 / 4 / 6 / 7 / 9 |
 | 板载 LED | 无（电源指示灯不受控） |
 
 > 预留音频引脚为规划值，后期按实际音频模块接线调整即可。
+
+## TF 卡（已支持）
+
+TF 卡使用 SDMMC 外设 4-bit 模式，引脚 GPIO33-38（经 GPIO matrix 引出）。
+**注意**：本板 PSRAM 为 Quad 模式（仅占用 GPIO26-32 与 Flash 共享总线），
+因此 GPIO33-38 完全空闲；若把配置误改为 Octal PSRAM（`CONFIG_SPIRAM_MODE_OCT`），
+该组引脚会被 PSRAM 占用，SD 卡将无法工作。
+
+- 挂载点：`/sdcard`（FATFS，启动时自动挂载）
+- 无卡时不阻塞启动，日志出现 `SD card mount failed (no TF card inserted)` 属正常
+- 插入 TF 卡后重启，串口日志打印卡容量/速度等信息并显示 `SD card mounted at /sdcard`
 
 ## 环境要求
 
@@ -92,8 +104,6 @@ python tools/run_idf.py -p COM4 monitor
 
 ## 已知限制
 
-- **TF 卡**：硬件上 TF 卡 CE# 接 SPI0_CS1（与 W25Q128 共用 SPI0 总线），
-  SDMMC/SDSPI 驱动无法使用该总线，当前固件未启用 TF 卡功能。
 - **W5500 以太网**：xiaozhi-esp32 master 仅支持 RMII 接口 PHY（如 IP101），
   W5500 为 SPI 接口网卡，需要自行移植（当前使用板载 Wi-Fi 联网）。
 - **背光**：LEDA 直接接电源常亮，无亮度调节。

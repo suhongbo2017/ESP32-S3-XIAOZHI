@@ -14,6 +14,9 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 #include <driver/spi_common.h>
+#include <driver/sdmmc_host.h>
+#include <sdmmc_cmd.h>
+#include <esp_vfs_fat.h>
 
 #define TAG "Esp32S3LcdBoard"
 
@@ -76,11 +79,45 @@ private:
         });
     }
 
+    void InitializeSdCard() {
+        sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+        host.slot = SDMMC_HOST_SLOT_0;
+        host.max_freq_khz = SDMMC_FREQ_DEFAULT;
+
+        sdmmc_slot_config_t slot = SDMMC_SLOT_CONFIG_DEFAULT();
+        slot.width = 4;
+        slot.clk = SDMMC_CLK_GPIO;
+        slot.cmd = SDMMC_CMD_GPIO;
+        slot.d0 = SDMMC_D0_GPIO;
+        slot.d1 = SDMMC_D1_GPIO;
+        slot.d2 = SDMMC_D2_GPIO;
+        slot.d3 = SDMMC_D3_GPIO;
+        slot.cd = SDMMC_SLOT_NO_CD;
+        slot.wp = SDMMC_SLOT_NO_WP;
+        slot.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
+
+        const esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+            .format_if_mount_failed = false,
+            .max_files = 5,
+            .allocation_unit_size = 16 * 1024,
+        };
+
+        sdmmc_card_t* card = nullptr;
+        esp_err_t ret = esp_vfs_fat_sdmmc_mount(SD_CARD_MOUNT_POINT, &host, &slot, &mount_config, &card);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "SD card mount failed (no TF card inserted): %s", esp_err_to_name(ret));
+            return;
+        }
+        sdmmc_card_print_info(stdout, card);
+        ESP_LOGI(TAG, "SD card mounted at %s", SD_CARD_MOUNT_POINT);
+    }
+
 public:
     Esp32S3LcdBoard() : boot_button_(BOOT_BUTTON_GPIO) {
         InitializeSpi();
         InitializeLcdDisplay();
         InitializeButtons();
+        InitializeSdCard();
     }
 
     virtual Led* GetLed() override {
