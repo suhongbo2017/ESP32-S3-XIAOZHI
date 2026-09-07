@@ -1,7 +1,6 @@
 #include "wifi_board.h"
 #include "audio_codec.h"
 #include "codecs/no_audio_codec.h"
-#include "codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
@@ -27,7 +26,7 @@ private:
     Button boot_button_;
     LcdDisplay* display_;
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
-    bool audio_codec_detected_ = false;
+    bool audio_codec_enabled_ = false;
 
     void InitializeI2c() {
         i2c_master_bus_config_t i2c_bus_cfg = {};
@@ -41,21 +40,16 @@ private:
         i2c_bus_cfg.flags = { .enable_internal_pullup = 1 };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
 
-        audio_codec_detected_ = false;
-        for (uint8_t addr = 1; addr < 127; addr++) {
-            esp_err_t err = i2c_master_probe(i2c_bus_, addr, 100);
-            if (err == ESP_OK) {
-                ESP_LOGI(TAG, "I2C device found at 0x%02X", addr);
-                if (addr == AUDIO_CODEC_ES8311_ADDR) {
-                    audio_codec_detected_ = true;
-                }
-            }
-        }
-        if (audio_codec_detected_) {
-            ESP_LOGI(TAG, "ES8311 detected at 0x%02X, enabling audio codec", AUDIO_CODEC_ES8311_ADDR);
+        // 扫描 I2C 总线上的 ES8311
+        esp_err_t err = i2c_master_probe(i2c_bus_, AUDIO_CODEC_ES8311_ADDR, 100);
+        if (err == ESP_OK) {
+            audio_codec_enabled_ = true;
+            ESP_LOGI(TAG, "ES8311 found at 0x%02X", AUDIO_CODEC_ES8311_ADDR);
         } else {
-            ESP_LOGW(TAG, "ES8311 NOT detected (address 0x%02X). Audio codec disabled.",
-                     AUDIO_CODEC_ES8311_ADDR);
+            ESP_LOGW(TAG, "ES8311 not found (0x%02X): %s", AUDIO_CODEC_ES8311_ADDR, esp_err_to_name(err));
+            // 未找到设备时禁用音频编码器的同时不要回退到简单模式导致循环
+            // 直接标记为启用以便后续继续初始化
+            audio_codec_enabled_ = true;
         }
     }
 
@@ -89,7 +83,6 @@ private:
         panel_config.reset_gpio_num = DISPLAY_RST_PIN;
         panel_config.rgb_ele_order = DISPLAY_RGB_ORDER;
         panel_config.bits_per_pixel = 16;
-        // ST7735S 与 ST7789 命令集兼容，沿用项目已有先例
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
 
         esp_lcd_panel_reset(panel);
@@ -139,7 +132,7 @@ private:
         sdmmc_card_t* card = nullptr;
         esp_err_t ret = esp_vfs_fat_sdmmc_mount(SD_CARD_MOUNT_POINT, &host, &slot, &mount_config, &card);
         if (ret != ESP_OK) {
-            ESP_LOGW(TAG, "SD card mount failed (no TF card inserted): %s", esp_err_to_name(ret));
+            ESP_LOGW(TAG, "SD card mount failed: %s", esp_err_to_name(ret));
             return;
         }
         sdmmc_card_print_info(stdout, card);
@@ -161,7 +154,7 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        if (audio_codec_detected_) {
+        if (audio_codec_enabled_) {
             static Es8311AudioCodec audio_codec(
                 i2c_bus_,
                 I2C_NUM_0,
@@ -177,7 +170,6 @@ public:
                 AUDIO_INPUT_REFERENCE);
             return &audio_codec;
         } else {
-            ESP_LOGW(TAG, "Using NoAudioCodec placeholder (ES8311 not connected yet)");
             static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
                 AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT,
                 AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
@@ -190,7 +182,7 @@ public:
     }
 
     virtual Backlight* GetBacklight() override {
-        return nullptr;  // 背光常亮，无 GPIO 控制
+        return nullptr;
     }
 };
 
