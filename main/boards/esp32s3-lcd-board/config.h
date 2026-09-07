@@ -27,6 +27,14 @@
 #define AUDIO_I2S_GPIO_DOUT    GPIO_NUM_7
 #define AUDIO_I2S_GPIO_DIN     GPIO_NUM_6
 
+// Fallback: NoAudioCodecSimplex 需要这些引脚定义
+#define AUDIO_I2S_MIC_GPIO_WS   GPIO_NUM_4
+#define AUDIO_I2S_MIC_GPIO_SCK  GPIO_NUM_5
+#define AUDIO_I2S_MIC_GPIO_DIN  GPIO_NUM_6
+#define AUDIO_I2S_SPK_GPIO_DOUT GPIO_NUM_7
+#define AUDIO_I2S_SPK_GPIO_BCLK GPIO_NUM_3
+#define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_8
+
 #endif
 
 /* ES8311 codec I2C 引脚 */

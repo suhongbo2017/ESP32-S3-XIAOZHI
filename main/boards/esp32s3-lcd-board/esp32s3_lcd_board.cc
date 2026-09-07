@@ -19,22 +19,6 @@
 #include <driver/sdmmc_host.h>
 #include <sdmmc_cmd.h>
 #include <esp_vfs_fat.h>
-#include "display/lcd_display.h"
-#include "system_reset.h"
-#include "application.h"
-#include "button.h"
-#include "config.h"
-#include "mcp_server.h"
-#include "led/single_led.h"
-
-#include <esp_log.h>
-#include <esp_lcd_panel_io.h>
-#include <esp_lcd_panel_ops.h>
-#include <esp_lcd_panel_vendor.h>
-#include <driver/spi_common.h>
-#include <driver/sdmmc_host.h>
-#include <sdmmc_cmd.h>
-#include <esp_vfs_fat.h>
 
 #define TAG "Esp32S3LcdBoard"
 
@@ -43,6 +27,7 @@ private:
     Button boot_button_;
     LcdDisplay* display_;
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
+    bool audio_codec_detected_ = false;
 
     void InitializeI2c() {
         i2c_master_bus_config_t i2c_bus_cfg = {};
@@ -55,11 +40,22 @@ private:
         i2c_bus_cfg.trans_queue_depth = 0;
         i2c_bus_cfg.flags = { .enable_internal_pullup = 1 };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
+
+        audio_codec_detected_ = false;
         for (uint8_t addr = 1; addr < 127; addr++) {
             esp_err_t err = i2c_master_probe(i2c_bus_, addr, 100);
             if (err == ESP_OK) {
-                ESP_LOGI(TAG, "Audio codec I2C device found at 0x%02X", addr);
+                ESP_LOGI(TAG, "I2C device found at 0x%02X", addr);
+                if (addr == AUDIO_CODEC_ES8311_ADDR) {
+                    audio_codec_detected_ = true;
+                }
             }
+        }
+        if (audio_codec_detected_) {
+            ESP_LOGI(TAG, "ES8311 detected at 0x%02X, enabling audio codec", AUDIO_CODEC_ES8311_ADDR);
+        } else {
+            ESP_LOGW(TAG, "ES8311 NOT detected (address 0x%02X). Audio codec disabled.",
+                     AUDIO_CODEC_ES8311_ADDR);
         }
     }
 
@@ -165,20 +161,28 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static Es8311AudioCodec audio_codec(
-            i2c_bus_,
-            I2C_NUM_0,
-            AUDIO_INPUT_SAMPLE_RATE,
-            AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_MCLK,
-            AUDIO_I2S_GPIO_BCLK,
-            AUDIO_I2S_GPIO_WS,
-            AUDIO_I2S_GPIO_DOUT,
-            AUDIO_I2S_GPIO_DIN,
-            AUDIO_CODEC_PA_PIN,
-            AUDIO_CODEC_ES8311_ADDR,
-            AUDIO_INPUT_REFERENCE);
-        return &audio_codec;
+        if (audio_codec_detected_) {
+            static Es8311AudioCodec audio_codec(
+                i2c_bus_,
+                I2C_NUM_0,
+                AUDIO_INPUT_SAMPLE_RATE,
+                AUDIO_OUTPUT_SAMPLE_RATE,
+                AUDIO_I2S_GPIO_MCLK,
+                AUDIO_I2S_GPIO_BCLK,
+                AUDIO_I2S_GPIO_WS,
+                AUDIO_I2S_GPIO_DOUT,
+                AUDIO_I2S_GPIO_DIN,
+                AUDIO_CODEC_PA_PIN,
+                AUDIO_CODEC_ES8311_ADDR,
+                AUDIO_INPUT_REFERENCE);
+            return &audio_codec;
+        } else {
+            ESP_LOGW(TAG, "Using NoAudioCodec placeholder (ES8311 not connected yet)");
+            static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+                AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT,
+                AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
+            return &audio_codec;
+        }
     }
 
     virtual Display* GetDisplay() override {
