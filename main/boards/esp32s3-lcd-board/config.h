@@ -3,12 +3,12 @@
 
 #include <driver/gpio.h>
 
-/* 音频（后期添加 ES8311 单麦 codec，当前先预留引脚，使用 NoAudioCodec） */
+/* ES8311 音频编解码器 + NS4150B/ES8311 PA */
 #define AUDIO_INPUT_SAMPLE_RATE  16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
-// 如果使用 Duplex I2S 模式，请注释下面一行
-#define AUDIO_I2S_METHOD_SIMPLEX
+// ES8311 使用 Duplex I2S 模式（注释掉下面一行启用简单模式，但 ES8311 需要 Duplex）
+// #define AUDIO_I2S_METHOD_SIMPLEX
 
 #ifdef AUDIO_I2S_METHOD_SIMPLEX
 
@@ -21,16 +21,24 @@
 
 #else
 
-#define AUDIO_I2S_GPIO_WS   GPIO_NUM_4
-#define AUDIO_I2S_GPIO_BCLK GPIO_NUM_5
-#define AUDIO_I2S_GPIO_DIN  GPIO_NUM_6
-#define AUDIO_I2S_GPIO_DOUT GPIO_NUM_7
+#define AUDIO_I2S_GPIO_MCLK    GPIO_NUM_5
+#define AUDIO_I2S_GPIO_BCLK    GPIO_NUM_3
+#define AUDIO_I2S_GPIO_WS      GPIO_NUM_4
+#define AUDIO_I2S_GPIO_DOUT    GPIO_NUM_7
+#define AUDIO_I2S_GPIO_DIN     GPIO_NUM_6
 
 #endif
 
-/* ES8311 codec I2C 引脚（预留，后期音频模块按实际接线调整） */
+/* ES8311 codec I2C 引脚 */
 #define AUDIO_CODEC_I2C_SDA_PIN GPIO_NUM_1
 #define AUDIO_CODEC_I2C_SCL_PIN GPIO_NUM_2
+
+/* ES8311 PA 控制引脚（接 NS4150B SD 脚） */
+#define AUDIO_CODEC_PA_PIN GPIO_NUM_8
+#define AUDIO_CODEC_ES8311_ADDR ES8311_CODEC_DEFAULT_ADDR  // AD0=GND → 0x18
+
+/* 单麦配置，不需要声学参考声道回声消除 */
+#define AUDIO_INPUT_REFERENCE    false
 
 /* 本板无板载可控 LED（仅电源指示灯），板载按钮为 BOOT 键 */
 #define BUILTIN_LED_GPIO        GPIO_NUM_NC
